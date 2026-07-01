@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ArrowLeft, Send, Loader2 } from "lucide-react";
 import type { DayPricing } from "@/types";
 import { formatDateFR, formatPrice, addDaysStr } from "@/lib/date-utils";
 import { getMultiDayTotal, getDayPrice } from "@/lib/pricing-engine";
+import { trackEvent } from "@/lib/analytics";
 
 interface QuoteFormProps {
   day: DayPricing;
@@ -38,6 +39,11 @@ export function QuoteForm({ day, allDays, onBack, onSuccess }: QuoteFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [numberOfDays, setNumberOfDays] = useState(1);
+
+  // GA4 : ouverture du formulaire de devis (best-effort).
+  useEffect(() => {
+    trackEvent("quote_form_open", { date: day.date });
+  }, [day.date]);
 
   // Table de correspondance date → tarif (pour connaître la disponibilité).
   const dayMap = useMemo(() => {
@@ -95,6 +101,11 @@ export function QuoteForm({ day, allDays, onBack, onSuccess }: QuoteFormProps) {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "Erreur lors de l'envoi");
       }
+      trackEvent("quote_form_submit", {
+        date: day.date,
+        number_of_days: numberOfDays,
+        value: totalPrice,
+      });
       setSuccess(true);
       setTimeout(onSuccess, 2000);
     } catch (err) {

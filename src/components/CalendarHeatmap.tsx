@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useState, useMemo } from "react";
 import type { DayPricing } from "@/types";
+import { trackDayClick } from "@/lib/analytics";
 import { MonthGrid } from "./MonthGrid";
 import { MonthNavigator } from "./MonthNavigator";
 import { DayModal } from "./DayModal";
@@ -38,6 +39,7 @@ export function CalendarHeatmap({ days, months }: CalendarHeatmapProps) {
 
   const handleDayClick = useCallback((day: DayPricing) => {
     setSelectedDay(day);
+    trackDayClick(day.date); // best-effort : GA4 + vue serveur
   }, []);
 
   // Regroupe les jours par mois (clé YYYY-MM) une seule fois.
