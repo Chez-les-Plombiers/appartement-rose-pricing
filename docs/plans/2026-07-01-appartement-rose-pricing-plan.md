@@ -43,7 +43,7 @@
 ### Task 1.1: Config prix + dates spéciales
 **Files:** Create `src/lib/tier-config.ts`, `src/lib/calendar-data.ts`, `src/types/index.ts`
 **Steps:**
-1. `tier-config.ts` : `WEEKDAY_PRICES` (grille Lun→Dim, HT, valeurs placeholder + commentaire « À FOURNIR PAR FRED »), `SPECIAL_DATE_PRICES` (map date→prix). PAS de `HALF_DAY_RATIO`, PAS de coeffs booking-window.
+1. `tier-config.ts` : `WEEKDAY_PRICES` (grille Lun→Dim, HT) = **Lun 1500, Mar 1500, Mer 2000, Jeu 3000, Ven 2500, Sam 1500, Dim 1500**. `SPECIAL_DATE_PRICES` (map date→prix, placeholder). PAS de `HALF_DAY_RATIO`, PAS de coeffs booking-window. Ces valeurs sont les DÉFAUTS ; l'admin (Phase 7) peut les surcharger via KV.
 2. `calendar-data.ts` : listes dates spéciales (fériés/ponts/vacances/saison) éditables, placeholder.
 3. `types/index.ts` : `DayPricing`, `QuoteRequest`, `SpecialDate` (versions simplifiées, journée seule).
 4. Commit : `feat: config prix par jour de semaine + dates spéciales`
@@ -119,6 +119,28 @@ Tests : champs requis manquants → 400 ; email invalide → 400 ; payload valid
 ### Task 5.1: GA4 + Clarity + compteur vues
 **Files:** Modify `src/app/layout.tsx`, Create `src/app/api/analytics/route.ts`, `src/lib/analytics.ts`
 GA4 + Microsoft Clarity via `next/script` (IDs en placeholder « À FOURNIR » ou env). `POST /api/analytics` incrémente le compteur KV. Events client : `calendar_day_click`, `quote_form_open`, `quote_form_submit`. Build + commit.
+
+---
+
+## Phase 7 — Admin (édition prix + leads)
+
+Admin minimal password-gated (`ADMIN_PASSWORD`, session), porté/simplifié de l'admin CLP. Édite les prix, voit les devis. Les prix effectifs = défauts config (`tier-config`) **surchargés** par les overrides KV.
+
+### Task 7.1: Overrides prix en KV
+**Files:** Modify `src/lib/kv.ts`, `src/lib/pricing-engine.ts`
+Ajouter en KV : `getWeekdayPriceOverrides()` / `setWeekdayPriceOverrides()` et `getDateOverride(date)` / `setDateOverride()`. `pricing-engine` merge : override date > override jour-de-semaine > défaut config. Tests unitaires du merge (priorité). Commit.
+
+### Task 7.2: Auth admin
+**Files:** Create `src/app/admin/login` (ou `AdminLogin` component), `src/app/api/admin/auth/route.ts`
+Vérifie `ADMIN_PASSWORD`, pose une session (sessionStorage côté client + check serveur sur les routes admin). Commit.
+
+### Task 7.3: Page admin — édition prix
+**Files:** Create `src/app/admin/page.tsx` + `src/app/admin/client.tsx`, `src/app/api/admin/prices/route.ts`
+UI : grille 7 jours éditable (défauts affichés, override si présent) + éditeur d'override par date. Enregistre via l'API dans KV. Design system CLP. Commit.
+
+### Task 7.4: Admin — liste des leads (fallback formulaire)
+**Files:** Modify `src/app/admin/client.tsx`, Create `src/app/api/admin/quotes/route.ts`
+Affiche les devis reçus (les gens qui ont rempli le formulaire) : nom, contact (`mailto:`/`tel:`), date demandée, prix, type, message. Lecture depuis KV. Commit.
 
 ---
 

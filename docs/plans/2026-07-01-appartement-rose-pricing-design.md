@@ -31,8 +31,12 @@ L'Appartement Rose est une salle événementielle de Chez Les Plombiers (page `c
 - Heatmap couleurs par niveau de demande + légende (rendu visuel neutre)
 - Champs B2B : autocomplete SIRENE, SIRET, client final
 - Sync CRM Pipedrive, webhooks Calendly/n8n, export ICS
-- Tout l'admin : éditeur calendrier, bulk editor, projections, dashboard finances/Pennylane
+- Admin lourd CLP : bulk editor, projections, dashboard finances/Pennylane
 - Système de gate/access-code legacy
+
+### Admin minimal (ajouté 2026-07-01)
+- Admin password-gated (`ADMIN_PASSWORD`) : **édition de la grille de prix** (défauts config surchargés par overrides KV) + overrides par date, et **liste des devis reçus** (leads = fallback des gens qui remplissent le formulaire).
+- Grille de prix par défaut (HT) : Lun 1500, Mar 1500, Mer 2000, Jeu 3000, Ven 2500, Sam 1500, Dim 1500.
 
 ## Architecture
 
