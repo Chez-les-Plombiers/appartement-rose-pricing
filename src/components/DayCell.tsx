@@ -39,7 +39,7 @@ export function DayCell({ day, onClick }: DayCellProps) {
       <span className="text-xs font-medium sm:text-sm">{dayNum}</span>
       {isDisabled ? (
         day.isBooked && (
-          <span className="max-w-full truncate font-mono text-[7px] uppercase leading-none text-muted sm:text-[8px]">
+          <span className="max-w-full truncate font-mono text-[7px] uppercase leading-none tracking-tight text-muted">
             Réservé
           </span>
         )
