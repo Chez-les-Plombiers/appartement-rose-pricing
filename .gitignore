@@ -4,3 +4,5 @@ node_modules
 .vercel
 entities.json
 mempalace.yaml
+
+!.env.example
