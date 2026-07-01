@@ -6,3 +6,6 @@ entities.json
 mempalace.yaml
 
 !.env.example
+
+# build artifacts
+tsconfig.tsbuildinfo
