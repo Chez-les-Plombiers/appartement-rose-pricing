@@ -40,15 +40,40 @@ describe("getDayPrice", () => {
     expect(getDayPrice("2026-06-24")).toBe(3000);
   });
 
-  it("une date spéciale surcharge le prix du jour de semaine", () => {
-    const overrides = { "2026-06-03": 5000 };
-    expect(getDayPrice("2026-06-03", overrides)).toBe(5000);
+  it("un override de date surcharge le prix du jour de semaine", () => {
+    const config = { dateOverrides: { "2026-06-03": 5000 } };
+    expect(getDayPrice("2026-06-03", config)).toBe(5000);
     expect(getDayPrice("2026-06-03")).toBe(1500);
   });
 
-  it("un override admin surcharge même la Fashion Week", () => {
-    const overrides = { "2026-06-24": 999 };
-    expect(getDayPrice("2026-06-24", overrides)).toBe(999);
+  it("un override de date surcharge même la Fashion Week", () => {
+    const config = { dateOverrides: { "2026-06-24": 999 } };
+    expect(getDayPrice("2026-06-24", config)).toBe(999);
+  });
+
+  it("un override de jour de semaine surcharge la grille par défaut (mercredi)", () => {
+    const config = { weekdayOverrides: { 3: 2500 } }; // 3 = mercredi
+    expect(getDayPrice("2026-06-03", config)).toBe(2500);
+    expect(getDayPrice("2026-06-03")).toBe(1500);
+  });
+
+  it("un override de jour de semaine n'affecte pas les autres jours", () => {
+    const config = { weekdayOverrides: { 3: 2500 } }; // mercredi seulement
+    expect(getDayPrice("2026-06-04", config)).toBe(2000); // jeudi inchangé
+  });
+
+  it("la Fashion Week bat un override de jour de semaine", () => {
+    // 2026-06-24 = mercredi en Fashion Week Homme (3000)
+    const config = { weekdayOverrides: { 3: 2500 } };
+    expect(getDayPrice("2026-06-24", config)).toBe(3000);
+  });
+
+  it("un override de date bat un override de jour de semaine", () => {
+    const config = {
+      dateOverrides: { "2026-06-03": 5000 },
+      weekdayOverrides: { 3: 2500 },
+    };
+    expect(getDayPrice("2026-06-03", config)).toBe(5000);
   });
 
   it("ne dépend pas de la distance à aujourd'hui (même date = même prix)", () => {
@@ -69,10 +94,16 @@ describe("getMultiDayTotal", () => {
     expect(getMultiDayTotal("2026-06-01", 1)).toBe(getDayPrice("2026-06-01"));
   });
 
-  it("prend en compte les dates spéciales dans la somme", () => {
-    const overrides = { "2026-06-04": 10000 };
+  it("prend en compte les overrides de date dans la somme", () => {
+    const config = { dateOverrides: { "2026-06-04": 10000 } };
     // Mer 1500 + Jeu (override) 10000 + Ven 1500 = 13000
-    expect(getMultiDayTotal("2026-06-03", 3, overrides)).toBe(13000);
+    expect(getMultiDayTotal("2026-06-03", 3, config)).toBe(13000);
+  });
+
+  it("prend en compte les overrides de jour de semaine dans la somme", () => {
+    const config = { weekdayOverrides: { 4: 3000 } }; // jeudi 2000 → 3000
+    // Mer 1500 + Jeu (override) 3000 + Ven 1500 = 6000
+    expect(getMultiDayTotal("2026-06-03", 3, config)).toBe(6000);
   });
 
   it("applique le forfait semaine Fashion Week (15 000) pour 7 jours consécutifs en FW", () => {
@@ -85,9 +116,16 @@ describe("getMultiDayTotal", () => {
   });
 
   it("le forfait semaine FW ne s'applique pas si un jour a un prix explicite", () => {
-    const overrides = { "2026-09-28": 4000 };
+    const config = { dateOverrides: { "2026-09-28": 4000 } };
     // 4000 (override) + 6 × 3000 (FW) = 22 000
-    expect(getMultiDayTotal("2026-09-28", 7, overrides)).toBe(22000);
+    expect(getMultiDayTotal("2026-09-28", 7, config)).toBe(22000);
+  });
+
+  it("le forfait semaine FW s'applique malgré un override de jour de semaine (FW prioritaire)", () => {
+    // Un override de jour de semaine ne constitue pas un prix explicite : le
+    // forfait Fashion Week reste applicable sur 7 jours consécutifs en FW.
+    const config = { weekdayOverrides: { 1: 500, 2: 500, 3: 500 } };
+    expect(getMultiDayTotal("2026-09-28", 7, config)).toBe(15000);
   });
 });
 

@@ -18,14 +18,27 @@ import { isFashionWeek } from "./calendar-data";
  *   dépend jamais de la distance à aujourd'hui ;
  * - AUCUN palier de demande.
  *
- * Priorité de prix : priceOverrides (admin/KV) > SPECIAL_DATE_PRICES >
- * Fashion Week > grille jour de semaine.
+ * Priorité de prix : dateOverrides (admin/KV) > SPECIAL_DATE_PRICES >
+ * Fashion Week > (weekdayOverrides admin/KV ?? grille jour de semaine).
  *
- * `priceOverrides` est le point d'extension de la future surcharge
- * administrateur (KV / Upstash Redis). Par défaut, la config seule est utilisée.
+ * Les surcharges administrateur (KV / Upstash Redis) se déclinent en deux
+ * niveaux : surcharge par date précise (`dateOverrides`) et surcharge de la
+ * grille par jour de semaine (`weekdayOverrides`). Par défaut, la config seule
+ * est utilisée.
  */
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/**
+ * Surcharges administrateur des prix (stockées en KV).
+ * - `dateOverrides` : date YYYY-MM-DD → prix (priorité maximale) ;
+ * - `weekdayOverrides` : jour de semaine (0 = dim … 6 = sam) → prix, se
+ *   substituant à la grille WEEKDAY_PRICES par défaut.
+ */
+export interface PriceConfig {
+  dateOverrides?: Record<string, number>;
+  weekdayOverrides?: Record<number, number>;
+}
 
 /** Normalise une entrée `Date | string` en chaîne locale YYYY-MM-DD. */
 function toDateStr(date: Date | string): string {
@@ -41,30 +54,37 @@ function parseLocal(dateStr: string): Date {
   return new Date(dateStr + "T00:00:00");
 }
 
-/** Une date a-t-elle un prix explicite (override admin ou date spéciale) ? */
+/**
+ * Une date a-t-elle un prix explicite (override de date ou date spéciale) ?
+ * Un override de jour de semaine n'est PAS considéré comme explicite : la
+ * Fashion Week reste prioritaire dessus (y compris pour le forfait semaine).
+ */
 function hasExplicitPrice(
   dateStr: string,
-  priceOverrides: Record<string, number>,
+  dateOverrides: Record<string, number>,
 ): boolean {
-  return dateStr in priceOverrides || dateStr in SPECIAL_DATE_PRICES;
+  return dateStr in dateOverrides || dateStr in SPECIAL_DATE_PRICES;
 }
 
 /**
  * Prix journée complète (HT) pour une date.
- * Priorité : priceOverrides > SPECIAL_DATE_PRICES > Fashion Week > grille jour de semaine.
+ * Priorité : dateOverrides > SPECIAL_DATE_PRICES > Fashion Week >
+ * (weekdayOverrides ?? grille jour de semaine).
  */
 export function getDayPrice(
   date: Date | string,
-  priceOverrides: Record<string, number> = {},
+  config: PriceConfig = {},
 ): number {
   const dateStr = toDateStr(date);
+  const dateOverrides = config.dateOverrides ?? {};
+  const weekdayOverrides = config.weekdayOverrides ?? {};
 
-  if (dateStr in priceOverrides) return priceOverrides[dateStr];
+  if (dateStr in dateOverrides) return dateOverrides[dateStr];
   if (dateStr in SPECIAL_DATE_PRICES) return SPECIAL_DATE_PRICES[dateStr];
   if (isFashionWeek(dateStr)) return FASHION_WEEK_DAY_PRICE;
 
   const dow = parseLocal(dateStr).getDay(); // 0 (dim) … 6 (sam)
-  return WEEKDAY_PRICES[dow];
+  return weekdayOverrides[dow] ?? WEEKDAY_PRICES[dow];
 }
 
 /**
@@ -77,9 +97,10 @@ export function getDayPrice(
 export function getMultiDayTotal(
   startDate: Date | string,
   nbDays: number,
-  priceOverrides: Record<string, number> = {},
+  config: PriceConfig = {},
 ): number {
   const start = parseLocal(toDateStr(startDate));
+  const dateOverrides = config.dateOverrides ?? {};
   const dayStrs: string[] = [];
   for (let i = 0; i < nbDays; i++) {
     dayStrs.push(toDateStr(new Date(start.getTime() + i * MS_PER_DAY)));
@@ -88,10 +109,10 @@ export function getMultiDayTotal(
   // Forfait semaine Fashion Week : 7 jours, tous en FW, aucun prix explicite.
   const isFashionWeekPackage =
     nbDays === 7 &&
-    dayStrs.every((d) => isFashionWeek(d) && !hasExplicitPrice(d, priceOverrides));
+    dayStrs.every((d) => isFashionWeek(d) && !hasExplicitPrice(d, dateOverrides));
   if (isFashionWeekPackage) return FASHION_WEEK_WEEK_PACKAGE;
 
-  return dayStrs.reduce((total, d) => total + getDayPrice(d, priceOverrides), 0);
+  return dayStrs.reduce((total, d) => total + getDayPrice(d, config), 0);
 }
 
 /**
@@ -101,7 +122,7 @@ export function getMultiDayTotal(
 export function computeDayPricing(
   date: Date | string,
   options: { isBooked?: boolean } = {},
-  priceOverrides: Record<string, number> = {},
+  config: PriceConfig = {},
 ): DayPricing {
   const dateStr = toDateStr(date);
   const today = new Date();
@@ -109,7 +130,7 @@ export function computeDayPricing(
 
   return {
     date: dateStr,
-    price: getDayPrice(dateStr, priceOverrides),
+    price: getDayPrice(dateStr, config),
     isBooked: options.isBooked ?? false,
     isPast: parseLocal(dateStr).getTime() < today.getTime(),
   };

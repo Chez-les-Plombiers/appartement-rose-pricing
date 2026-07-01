@@ -3,6 +3,7 @@ import { Footer } from "@/components/Footer";
 import { CalendarHeatmap, type WindowMonth } from "@/components/CalendarHeatmap";
 import { computeDayPricing } from "@/lib/pricing-engine";
 import { getBookedDays } from "@/lib/google-calendar";
+import { getPriceConfig } from "@/lib/kv";
 import { getDatesInMonth } from "@/lib/date-utils";
 import type { DayPricing } from "@/types";
 
@@ -25,13 +26,17 @@ export default async function Home() {
   const timeMin = new Date(first.year, first.month, 1).toISOString();
   const timeMax = new Date(last.year, last.month + 1, 0, 23, 59, 59).toISOString();
 
-  // Jours réservés (ensemble vide si l'API n'est pas configurée / échoue).
-  const bookedDays = await getBookedDays(timeMin, timeMax);
+  // Jours réservés (ensemble vide si l'API n'est pas configurée / échoue) et
+  // surcharges de prix administrateur (config vide si KV indisponible).
+  const [bookedDays, priceConfig] = await Promise.all([
+    getBookedDays(timeMin, timeMax),
+    getPriceConfig(),
+  ]);
 
-  // Tarifs pré-calculés, drapeau réservé fusionné.
+  // Tarifs pré-calculés, drapeau réservé fusionné, surcharges admin appliquées.
   const days: DayPricing[] = months.flatMap(({ year, month }) =>
     getDatesInMonth(year, month).map((date) =>
-      computeDayPricing(date, { isBooked: bookedDays.has(date) }),
+      computeDayPricing(date, { isBooked: bookedDays.has(date) }, priceConfig),
     ),
   );
 

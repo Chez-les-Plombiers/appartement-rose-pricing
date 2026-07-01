@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import type { QuoteRequest } from "@/types";
+import type { PriceConfig } from "./pricing-engine";
 
 /**
  * Accès Upstash Redis. Si les variables d'environnement manquent, toutes les
@@ -15,6 +16,39 @@ function getRedis(): Redis | null {
 
 const QUOTES_KEY = "rose:quotes";
 const DAY_VIEWS_KEY = "rose:day-views";
+const PRICE_CONFIG_KEY = "rose:price-config";
+
+/**
+ * Configuration de prix administrateur telle que persistée en KV : les deux
+ * niveaux de surcharge sont toujours présents (objets vides par défaut).
+ */
+export type StoredPriceConfig = Required<PriceConfig>;
+
+const EMPTY_PRICE_CONFIG: StoredPriceConfig = {
+  weekdayOverrides: {},
+  dateOverrides: {},
+};
+
+/**
+ * Renvoie la configuration de prix administrateur (surcharges par jour de
+ * semaine et par date). Objets vides si KV indisponible ou config absente.
+ */
+export async function getPriceConfig(): Promise<StoredPriceConfig> {
+  const redis = getRedis();
+  if (!redis) return EMPTY_PRICE_CONFIG;
+  const data = await redis.get<StoredPriceConfig>(PRICE_CONFIG_KEY);
+  return {
+    weekdayOverrides: data?.weekdayOverrides ?? {},
+    dateOverrides: data?.dateOverrides ?? {},
+  };
+}
+
+/** Enregistre la configuration de prix administrateur. No-op si KV absent. */
+export async function setPriceConfig(config: StoredPriceConfig): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  await redis.set(PRICE_CONFIG_KEY, config);
+}
 
 /** Enregistre une demande de devis (la plus récente en tête). Immuable. */
 export async function addQuote(quote: QuoteRequest): Promise<void> {
