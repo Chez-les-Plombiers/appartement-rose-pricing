@@ -30,7 +30,7 @@ export function DayCell({ day, onClick }: DayCellProps) {
       disabled={isDisabled}
       aria-label={ariaLabel}
       className={cn(
-        "group flex h-12 w-full flex-col items-center justify-center gap-0.5 border transition-colors sm:h-14",
+        "group flex h-12 w-full flex-col items-center justify-center gap-0.5 overflow-hidden border px-0.5 transition-colors sm:h-14",
         isDisabled
           ? "cursor-not-allowed border-transparent bg-booked/50 text-muted"
           : "cursor-pointer border-border bg-surface text-foreground hover:border-accent hover:bg-card",
@@ -39,12 +39,12 @@ export function DayCell({ day, onClick }: DayCellProps) {
       <span className="text-xs font-medium sm:text-sm">{dayNum}</span>
       {isDisabled ? (
         day.isBooked && (
-          <span className="font-mono text-[8px] uppercase tracking-wider text-muted sm:text-[9px]">
+          <span className="max-w-full truncate font-mono text-[7px] uppercase leading-none text-muted sm:text-[8px]">
             Réservé
           </span>
         )
       ) : (
-        <span className="font-mono text-[9px] text-accent transition-colors group-hover:text-accent-hover sm:text-[10px]">
+        <span className="max-w-full truncate font-mono text-[9px] leading-none text-accent transition-colors group-hover:text-accent-hover sm:text-[10px]">
           {formatPriceCompact(day.price)}
         </span>
       )}
