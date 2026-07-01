@@ -1,5 +1,11 @@
 import type { DayPricing } from "@/types";
-import { WEEKDAY_PRICES, SPECIAL_DATE_PRICES } from "./tier-config";
+import {
+  WEEKDAY_PRICES,
+  SPECIAL_DATE_PRICES,
+  FASHION_WEEK_DAY_PRICE,
+  FASHION_WEEK_WEEK_PACKAGE,
+} from "./tier-config";
+import { isFashionWeek } from "./calendar-data";
 
 /**
  * Moteur de prix Appartement Rose — journée complète uniquement.
@@ -7,13 +13,16 @@ import { WEEKDAY_PRICES, SPECIAL_DATE_PRICES } from "./tier-config";
  * Règles (volontairement simples) :
  * - prix de base = grille par jour de semaine (WEEKDAY_PRICES) ;
  * - une date spéciale (SPECIAL_DATE_PRICES) surcharge ce prix ;
+ * - en Fashion Week : 3000 €/jour, ou 15 000 € le forfait 7 jours consécutifs ;
  * - AUCUN coefficient de remise (early-bird / last-minute) : le prix ne
  *   dépend jamais de la distance à aujourd'hui ;
  * - AUCUN palier de demande.
  *
- * `priceOverrides` est un point d'extension pour une future couche de
- * surcharge administrateur (KV / Upstash Redis). Il a priorité sur la
- * config statique. Par défaut, la config seule est utilisée.
+ * Priorité de prix : priceOverrides (admin/KV) > SPECIAL_DATE_PRICES >
+ * Fashion Week > grille jour de semaine.
+ *
+ * `priceOverrides` est le point d'extension de la future surcharge
+ * administrateur (KV / Upstash Redis). Par défaut, la config seule est utilisée.
  */
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -32,9 +41,17 @@ function parseLocal(dateStr: string): Date {
   return new Date(dateStr + "T00:00:00");
 }
 
+/** Une date a-t-elle un prix explicite (override admin ou date spéciale) ? */
+function hasExplicitPrice(
+  dateStr: string,
+  priceOverrides: Record<string, number>,
+): boolean {
+  return dateStr in priceOverrides || dateStr in SPECIAL_DATE_PRICES;
+}
+
 /**
  * Prix journée complète (HT) pour une date.
- * Priorité : priceOverrides > SPECIAL_DATE_PRICES > grille jour de semaine.
+ * Priorité : priceOverrides > SPECIAL_DATE_PRICES > Fashion Week > grille jour de semaine.
  */
 export function getDayPrice(
   date: Date | string,
@@ -44,6 +61,7 @@ export function getDayPrice(
 
   if (dateStr in priceOverrides) return priceOverrides[dateStr];
   if (dateStr in SPECIAL_DATE_PRICES) return SPECIAL_DATE_PRICES[dateStr];
+  if (isFashionWeek(dateStr)) return FASHION_WEEK_DAY_PRICE;
 
   const dow = parseLocal(dateStr).getDay(); // 0 (dim) … 6 (sam)
   return WEEKDAY_PRICES[dow];
@@ -51,6 +69,10 @@ export function getDayPrice(
 
 /**
  * Total (HT) pour `nbDays` jours consécutifs à partir de `startDate` (inclus).
+ *
+ * Cas spécial Fashion Week : 7 jours consécutifs entièrement en Fashion Week,
+ * sans prix explicite (override/date spéciale) sur aucun de ces jours, bénéficient
+ * du forfait semaine (FASHION_WEEK_WEEK_PACKAGE = 15 000 €) au lieu de 7 × 3000.
  */
 export function getMultiDayTotal(
   startDate: Date | string,
@@ -58,12 +80,18 @@ export function getMultiDayTotal(
   priceOverrides: Record<string, number> = {},
 ): number {
   const start = parseLocal(toDateStr(startDate));
-  let total = 0;
+  const dayStrs: string[] = [];
   for (let i = 0; i < nbDays; i++) {
-    const current = new Date(start.getTime() + i * MS_PER_DAY);
-    total += getDayPrice(current, priceOverrides);
+    dayStrs.push(toDateStr(new Date(start.getTime() + i * MS_PER_DAY)));
   }
-  return total;
+
+  // Forfait semaine Fashion Week : 7 jours, tous en FW, aucun prix explicite.
+  const isFashionWeekPackage =
+    nbDays === 7 &&
+    dayStrs.every((d) => isFashionWeek(d) && !hasExplicitPrice(d, priceOverrides));
+  if (isFashionWeekPackage) return FASHION_WEEK_WEEK_PACKAGE;
+
+  return dayStrs.reduce((total, d) => total + getDayPrice(d, priceOverrides), 0);
 }
 
 /**

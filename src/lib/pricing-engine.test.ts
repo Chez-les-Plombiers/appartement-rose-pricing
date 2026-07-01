@@ -2,50 +2,67 @@ import { describe, it, expect } from "vitest";
 import { getDayPrice, getMultiDayTotal, computeDayPricing } from "./pricing-engine";
 
 /*
- * Dates de référence (vérifiées) :
- *   2026-06-01 = Lundi    → 1500
- *   2026-06-03 = Mercredi → 2000
- *   2026-06-04 = Jeudi    → 3000
- *   2026-06-05 = Vendredi → 2500
+ * Dates de référence (vérifiées, hors Fashion Week) :
+ *   2026-06-01 = Lundi    → 1000
+ *   2026-06-03 = Mercredi → 1500
+ *   2026-06-04 = Jeudi    → 2000
+ *   2026-06-05 = Vendredi → 1500
+ *
+ * Fashion Week 2026 (extraits) :
+ *   Homme        : 2026-06-23 → 2026-06-28
+ *   Femme PAP    : 2026-09-28 → 2026-10-06 (9 jours)
  */
 
 describe("getDayPrice", () => {
-  it("renvoie le prix du jour de semaine (mercredi → 2000)", () => {
-    expect(getDayPrice("2026-06-03")).toBe(2000);
+  it("renvoie le prix du jour de semaine (mercredi → 1500)", () => {
+    expect(getDayPrice("2026-06-03")).toBe(1500);
   });
 
-  it("renvoie le prix du jour de semaine (lundi → 1500)", () => {
-    expect(getDayPrice("2026-06-01")).toBe(1500);
+  it("renvoie le prix du jour de semaine (lundi → 1000)", () => {
+    expect(getDayPrice("2026-06-01")).toBe(1000);
   });
 
-  it("renvoie le prix du jour de semaine (jeudi → 3000)", () => {
-    expect(getDayPrice("2026-06-04")).toBe(3000);
+  it("renvoie le prix du jour de semaine (jeudi → 2000)", () => {
+    expect(getDayPrice("2026-06-04")).toBe(2000);
   });
 
-  it("renvoie le prix du jour de semaine (vendredi → 2500)", () => {
-    expect(getDayPrice("2026-06-05")).toBe(2500);
+  it("renvoie le prix du jour de semaine (vendredi → 1500)", () => {
+    expect(getDayPrice("2026-06-05")).toBe(1500);
+  });
+
+  it("renvoie le prix du week-end (samedi/dimanche → 1000)", () => {
+    expect(getDayPrice("2026-06-06")).toBe(1000); // samedi
+    expect(getDayPrice("2026-06-07")).toBe(1000); // dimanche
+  });
+
+  it("applique le tarif Fashion Week (3000/jour) au-dessus du jour de semaine", () => {
+    // 2026-06-24 = mercredi (1500 hors FW) mais tombe en Fashion Week Homme
+    expect(getDayPrice("2026-06-24")).toBe(3000);
   });
 
   it("une date spéciale surcharge le prix du jour de semaine", () => {
-    // 2026-06-03 est un mercredi (2000 par défaut) ; l'override le remplace
     const overrides = { "2026-06-03": 5000 };
     expect(getDayPrice("2026-06-03", overrides)).toBe(5000);
-    // sans override, on retombe sur le prix du jour de semaine
-    expect(getDayPrice("2026-06-03")).toBe(2000);
+    expect(getDayPrice("2026-06-03")).toBe(1500);
+  });
+
+  it("un override admin surcharge même la Fashion Week", () => {
+    const overrides = { "2026-06-24": 999 };
+    expect(getDayPrice("2026-06-24", overrides)).toBe(999);
   });
 
   it("ne dépend pas de la distance à aujourd'hui (même date = même prix)", () => {
     const first = getDayPrice("2026-06-05");
     const second = getDayPrice("2026-06-05");
     expect(first).toBe(second);
-    expect(first).toBe(2500);
+    expect(first).toBe(1500);
   });
 });
 
 describe("getMultiDayTotal", () => {
   it("somme les prix de jours consécutifs (3 jours dès le mercredi)", () => {
-    // Mer 2000 + Jeu 3000 + Ven 2500 = 7500
-    expect(getMultiDayTotal("2026-06-03", 3)).toBe(7500);
+    // Mer 1500 + Jeu 2000 + Ven 1500 = 5000
+    expect(getMultiDayTotal("2026-06-03", 3)).toBe(5000);
   });
 
   it("un seul jour équivaut à getDayPrice", () => {
@@ -54,8 +71,23 @@ describe("getMultiDayTotal", () => {
 
   it("prend en compte les dates spéciales dans la somme", () => {
     const overrides = { "2026-06-04": 10000 };
-    // Mer 2000 + Jeu (override) 10000 + Ven 2500 = 14500
-    expect(getMultiDayTotal("2026-06-03", 3, overrides)).toBe(14500);
+    // Mer 1500 + Jeu (override) 10000 + Ven 1500 = 13000
+    expect(getMultiDayTotal("2026-06-03", 3, overrides)).toBe(13000);
+  });
+
+  it("applique le forfait semaine Fashion Week (15 000) pour 7 jours consécutifs en FW", () => {
+    // 2026-09-28 → 2026-10-04 = 7 jours, tous en Fashion Week Femme PAP
+    expect(getMultiDayTotal("2026-09-28", 7)).toBe(15000);
+  });
+
+  it("sans le forfait (6 jours FW) : 6 × 3000 = 18 000", () => {
+    expect(getMultiDayTotal("2026-09-28", 6)).toBe(18000);
+  });
+
+  it("le forfait semaine FW ne s'applique pas si un jour a un prix explicite", () => {
+    const overrides = { "2026-09-28": 4000 };
+    // 4000 (override) + 6 × 3000 (FW) = 22 000
+    expect(getMultiDayTotal("2026-09-28", 7, overrides)).toBe(22000);
   });
 });
 
@@ -63,7 +95,7 @@ describe("computeDayPricing", () => {
   it("construit un DayPricing journée complète avec le drapeau réservé", () => {
     const result = computeDayPricing("2026-06-03", { isBooked: true });
     expect(result.date).toBe("2026-06-03");
-    expect(result.price).toBe(2000);
+    expect(result.price).toBe(1500);
     expect(result.isBooked).toBe(true);
   });
 

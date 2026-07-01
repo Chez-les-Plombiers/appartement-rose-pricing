@@ -15,14 +15,23 @@
  * plus tard par un administrateur via le KV (Upstash Redis).
  */
 export const WEEKDAY_PRICES: Record<number, number> = {
-  0: 1500, // Dimanche
-  1: 1500, // Lundi
-  2: 1500, // Mardi
-  3: 2000, // Mercredi
-  4: 3000, // Jeudi
-  5: 2500, // Vendredi
-  6: 1500, // Samedi
+  0: 1000, // Dimanche
+  1: 1000, // Lundi
+  2: 1000, // Mardi
+  3: 1500, // Mercredi
+  4: 2000, // Jeudi
+  5: 1500, // Vendredi
+  6: 1000, // Samedi
 };
+
+/**
+ * Tarifs Fashion Week (période spéciale — voir FASHION_WEEK_RANGES dans
+ * calendar-data.ts). Priorité au-dessus de la grille jour de semaine,
+ * mais en-dessous d'un prix spécial explicite (SPECIAL_DATE_PRICES) ou
+ * d'un override administrateur.
+ */
+export const FASHION_WEEK_DAY_PRICE = 3000; // € HT / jour en Fashion Week
+export const FASHION_WEEK_WEEK_PACKAGE = 15000; // € HT pour 7 jours consécutifs en Fashion Week
 
 /**
  * Prix spéciaux par date (YYYY-MM-DD) surchargeant le prix du jour de semaine.
