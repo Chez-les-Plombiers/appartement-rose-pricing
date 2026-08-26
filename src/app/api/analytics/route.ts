@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { incrementDayView } from "@/lib/kv";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -8,6 +9,10 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
  * Best-effort : no-op silencieux si KV absent ; toujours 200 sur succès.
  */
 export async function POST(request: Request) {
+  if (!(await rateLimit("rose-analytics", clientIp(request), 30))) {
+    return NextResponse.json({ error: "Trop de requêtes" }, { status: 429 });
+  }
+
   let date: unknown;
   try {
     ({ date } = (await request.json()) as { date?: unknown });

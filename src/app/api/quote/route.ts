@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { addQuote } from "@/lib/kv";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendQuoteNotification } from "@/lib/email";
 import { getMultiDayTotal } from "@/lib/pricing-engine";
 import type { QuoteRequest } from "@/types";
@@ -19,6 +20,13 @@ const MAX_DAYS = 7;
 
 /** Crée une demande de devis : validation → KV → notification (best-effort). */
 export async function POST(request: Request) {
+  if (!(await rateLimit("rose-quote", clientIp(request), 5))) {
+    return NextResponse.json(
+      { success: false, error: "Trop de demandes, réessayez dans une minute" },
+      { status: 429 },
+    );
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
